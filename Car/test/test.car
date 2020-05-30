@@ -1,0 +1,49 @@
+def_var valor := 50
+proc a(a, b, i)
+	echo valor
+	proc min()
+		echo i
+		if(i <= 50)
+			move_bk(50-i)
+		endif
+		echo "Es menor!"
+	end
+	proc max()
+		if(i <= 50)
+			move_fw(50-i)
+		endif
+		def_var a := "Es mayor!"
+		echo a
+	end
+	turn_lt(a)
+	if(i = 50)
+		return true
+	endif
+	if(a < b)
+		min()
+	else
+		max()
+	endif
+	return false
+end
+
+proc fibo(n)
+	if(n = 1 or n = 0)
+		return 1
+	endif
+	return fibo(n-1)+fibo(n-2)
+end
+
+def_var i := 1
+move_fw(600)
+while(true)
+	set_rgba #ffb000, 0.75
+	def_var val1 := 3 ---- i
+	def_var val2 := 2*i + val1
+	def_var ret := a(val1, val2, i)
+	echo ret
+	if(ret)
+		return 0
+	endif
+	i := i + 1
+endwhile

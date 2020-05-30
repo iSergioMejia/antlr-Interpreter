@@ -1,0 +1,249 @@
+grammar Car;
+@parser::header {
+	import java.util.Map;
+	import java.util.HashMap;
+	import co.edu.javeriana.ast.*;
+	import co.edu.javeriana.context.Context;
+}
+@parser::members {
+	
+	private Car car;
+	Map<String, Object> symbolTable = new HashMap<String, Object>();
+	public CarParser(TokenStream input, Car car)
+	{
+    	this(input);
+    	this.car = car;
+	}
+}
+
+program: {
+	Context context = new Context(null);
+	List<ASTNode> body = new ArrayList<ASTNode>();
+}
+
+(proc{body.add($proc.node);}|sentence{body.add($sentence.node);})+
+{
+	System.out.println("");
+	for(ASTNode n : body)
+	{
+		Object ret = n.execute(newContext);
+		if(ret instanceof Return)
+		{
+			return ret.getValue();
+		}
+	}
+};
+
+proc returns[ASTNode node]: PROC
+{
+	ArrayList<ASTNode> sentences = new ArrayList<>();
+	ArrayList<String> params = new ArrayList<>();
+} 
+name=ID LEFT_PAR (i1=ID{params.add($i1.text);} (COMMA i2=ID{params.add($i2.text);})*)? 
+RIGHT_PAR (s1=sentence{sentences.add($s1.node);} | p1=proc{sentences.add($p1.node);})+ 
+END
+{
+	$node = new ProcDef($name.text, params, sentences);	
+};
+
+sentence returns[ASTNode node]: 
+	move_fw{$node = $move_fw.node;}               | 
+	move_bk{$node = $move_bk.node;}               | 
+	turn_lt{$node = $turn_lt.node;}               | 
+	turn_rt{$node = $turn_rt.node;}               | 
+	set_rgba {$node = $set_rgba.node;}            | 
+	def_var_assign{$node = $def_var_assign.node;} |
+	def_var{$node = $def_var.node;}               | 
+	whilecycle{$node = $whilecycle.node;}         | 
+	ifstat{$node = $ifstat.node;}                 | 
+	echo{$node = $echo.node;}                     | 
+	assign{$node = $assign.node;}                 |
+	proc_call{$node = $proc_call.node;}			  |
+	return_call{$node = $return_call.node;}
+	;
+ 
+assign returns[ASTNode node]: ID 
+ ASSIGN expression{$node = new VarAssign($ID.text, $expression.node);};
+
+	
+def_var returns[ASTNode node]: DEF_VAR 
+	 ID{$node = new DefVar($ID.text, null);};
+	  
+def_var_assign returns[ASTNode node]: DEF_VAR 
+	 ID ASSIGN expression{$node = new DefVar($ID.text,$expression.node);}
+	 ;
+
+whilecycle returns[ASTNode node]: WHILE LEFT_PAR expression RIGHT_PAR 
+	{List<ASTNode> body = new ArrayList<ASTNode>();}
+	(s1=sentence{body.add($s1.node);}| p1=proc{body.add($p1.node);})+ 
+	ENDWHILE
+	{
+		$node = new WhileCycle($expression.node, body);
+	};
+
+ifstat returns[ASTNode node]: IF LEFT_PAR expression RIGHT_PAR
+	{List<ASTNode> body = new ArrayList<ASTNode>();
+	List<ASTNode> elseBody = new ArrayList<ASTNode>();
+	} 
+	(s1=sentence{body.add($s1.node);}| p1=proc{body.add($p1.node);})+ 
+	(ELSE 
+		(s2=sentence{elseBody.add($s2.node);}| p1=proc{body.add($p1.node);})+
+	)? 
+	ENDIF
+	{
+		$node = new IfConditional($expression.node, body, elseBody);
+	};
+
+echo returns [ASTNode node]: ECHO expression{$node = new Echo($expression.node);};
+
+return_call returns [ASTNode node]: RETURN expression{$node = new Return($expression.node);};
+
+proc_call returns[ASTNode node]: ID
+{
+	ArrayList<ASTNode> params = new ArrayList<ASTNode>();
+}
+LEFT_PAR ((e1=expression{params.add($e1.node);}|c1=COLOR{params.add(new Constant($c1.text));})
+	(COMMA (e2=expression{params.add($e2.node);}|c2=COLOR{params.add(new Constant($c2.text));})
+)*)? RIGHT_PAR
+{
+	$node = new ProcCall($ID.text, params);
+};
+
+expression returns[ASTNode node]:
+	t1=element{$node = $t1.node;} //(2+2)<4 and 5/(2+2) = 5/4
+	(AND t2 = element{$node = new And($node, $t2.node);}
+		|
+	 OR t2 = element{$node = new Or($node, $t2.node);}
+	)*;
+
+element returns[ASTNode node]:
+	(t1=operation{$node = $t1.node;} | NOT t1=operation{$node = new Not($t1.node);})
+	(DIFF t2 = operation{$node = new NotEqualTo($node, $t2.node);}
+		|
+	 EQ t2 = operation{$node = new EqualTo($node, $t2.node);}
+	 	|
+	 LEQ t2 = operation{$node = new LessOrEqualThan($node, $t2.node);}
+	 	|
+	 GEQ t2 = operation{$node = new GreaterOrEqualThan($node, $t2.node);}
+	 	|
+	 GT t2 = operation{$node = new GreaterThan($node, $t2.node);}
+	 	|
+	 LT t2 = operation{$node = new LessThan($node, $t2.node);}
+	)*;
+	
+operation returns[ASTNode node]:
+	t1=factor{$node = $t1.node;}
+	(SUM t2 = factor{$node = new Addition($node, $t2.node);}
+		|
+	 MINUS t2 = factor{$node = new Substraction($node, $t2.node);}
+	)*;
+	
+factor returns[ASTNode node]:
+	t1=term{$node = $t1.node;}
+	(PRODUCT t2 = term{$node = new Multiplication($node, $t2.node);}
+		|
+	 DIVISION t2 = term{$node = new Division($node, $t2.node);}
+	)*;	
+
+term returns[ASTNode node]: 
+	BOOL_OP{$node = new Constant(Boolean.parseBoolean($BOOL_OP.text));}
+	|
+	{int numMinus = 0;}(MINUS{numMinus++;})* ID
+	{
+		ASTNode n = new VarRef($ID.text);
+		if(numMinus%2 ==0) $node = n;
+		else $node = new AdditiveInverse(n);	
+	}
+	|
+	{int numMinus = 0;}(MINUS{numMinus++;})* NUMBER{ASTNode n = new Constant(Float.parseFloat($NUMBER.text));
+		if(numMinus%2 ==0) $node = n;
+		else $node = new AdditiveInverse(n);
+	}
+	|
+	STRING{String text = $STRING.text; $node = new Constant(text.substring(1,text.length()-1));}
+	|
+	(LEFT_PAR expression{$node = $expression.node;} RIGHT_PAR)
+	|
+	proc_call{$node = $proc_call.node;}
+	;
+
+move_fw returns[ASTNode node]: MOVE_FW 
+	operation
+	{
+		$node = new MoveFw($operation.node, this.car);
+	}
+	;
+
+move_bk returns [ASTNode node]: MOVE_BK 
+	operation
+	{
+		$node = new MoveBk($operation.node, this.car);
+	}
+	;
+
+turn_lt returns [ASTNode node]: TURN_LT 			
+	operation
+	{
+		$node = new TurnLt($operation.node, this.car);
+	}
+	;
+			
+turn_rt returns[ASTNode node]: TURN_RT
+	operation
+	{
+		$node = new TurnRt($operation.node, this.car);
+	}
+	;
+
+set_rgba returns[ASTNode node]: SET_RGBA{ASTNode val;}
+(term{val = $term.node;}|COLOR{val = new Constant($COLOR.text);})
+COMMA operation{ 
+	$node = new SetRGBA(val,$operation.node,this.car);
+};
+
+MOVE_FW: 'move_fw';
+MOVE_BK: 'move_bk';
+TURN_LT: 'turn_lt';
+TURN_RT: 'turn_rt';
+SET_RGBA: 'set_rgba';
+DEF_VAR: 'def_var';
+
+RETURN: 'return';
+ENDIF: 'endif';
+IF: 'if';
+ELSE: 'else';
+ENDWHILE: 'endwhile';
+WHILE: 'while';
+ECHO: 'echo';
+PROC: 'proc';
+END: 'end';
+
+ASSIGN: ':=';
+SUM: '+';
+MINUS: '-';
+PRODUCT: '*';
+DIVISION: '/';
+
+AND: 'and';
+OR: 'or';
+NOT: 'not';
+
+DIFF: '<>';
+LEQ: '<=';
+GEQ: '>=';
+EQ: '=';
+GT: '>';
+LT: '<';
+
+BOOL_OP: 'true'|'false';
+
+ID: [A-Za-z_][A-Za-z0-9_]*;
+NUMBER: [0-9]+('.'[0-9]+)?;
+STRING : '"'( '\\"' | . )*?'"' ; 
+COLOR: '#'[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f];
+LEFT_PAR: '(';
+RIGHT_PAR: ')';
+
+COMMA: ',';
+
+WS: [ \t\r\n]+ -> skip;

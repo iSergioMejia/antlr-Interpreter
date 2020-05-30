@@ -1,0 +1,13 @@
+package co.edu.javeriana.ast;
+
+import co.edu.javeriana.context.Context;
+
+public class Return implements ASTNode {
+
+	@Override
+	public Object execute(Context context) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+}

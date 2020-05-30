@@ -1,0 +1,24 @@
+package co.edu.javeriana.ast;
+
+import co.edu.javeriana.context.Context;
+
+public class Return implements ASTNode {
+
+	private ASTNode param;
+	private Object value;
+	
+	public Return(ASTNode param) {
+		super();
+		this.param = param;
+		this.value = new Object();
+	}
+
+
+	@Override
+	public Object execute(Context context) {
+		
+		this.value = param.execute(context); 
+		return this;
+	}
+
+}

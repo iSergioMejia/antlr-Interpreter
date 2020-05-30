@@ -1,0 +1,20 @@
+proc fibo(n)
+	if(n = 1 or n = 0)
+		return 1
+	endif
+	return fibo(n-1)+fibo(n-2)
+end
+
+move_fw 400
+turn_rt 90
+move_fw 300
+turn_lt 90
+def_var n := 10
+def_var i := 1
+set_rgba #ffb000, 1.0
+while(i <= n)
+	def_var adel := fibo(i)
+	move_fw adel
+	turn_lt 30
+	i := i + 1
+endwhile
